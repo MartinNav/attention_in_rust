@@ -1,6 +1,6 @@
-use std::{process::Output, usize};
+use std::usize;
 
-use ndarray::{s, Array3, ViewRepr};
+use ndarray::{s, Array3};
 fn min(a: usize, b: usize) -> usize {
     if a > b {
         return b;
@@ -44,8 +44,8 @@ pub fn flash_attention(
     let [batch_size, seq_len, head_dim] = q.shape() else {
         return None;
     };
-    let num_blocks = (seq_len + block_size - 1);
-    let output = Array3::zeros((*batch_size, *seq_len, *head_dim));
+    let num_blocks = seq_len + block_size - 1;
+    let mut output = Array3::zeros((*batch_size, *seq_len, *head_dim));
     for i in 0..num_blocks {
         for j in 0..num_blocks {
             let q_block = q.slice(s![
@@ -66,6 +66,19 @@ pub fn flash_attention(
 
             let s = dot_3d(&q_block.to_owned(), &(k_block.t().to_owned())).ok()?
                 / (*head_dim as f32).sqrt();
+            // I am not sure about this part of implementation being correct
+            let mut p = s.map(|&x| x.exp());
+            let sum = s.sum();
+            //this line is doing absolute sum not multidimensional one
+            p = p.map(|&x| x / sum);
+
+            let o = dot_3d(&p.to_owned(), &v_block.to_owned()).ok()?;
+            let mut out_slice = output.slice_mut(s![
+                ..,
+                (i * block_size)..(min((i + 1) * block_size, *seq_len)),
+                ..
+            ]);
+            out_slice.zip_mut_with(&o, |out_val, &o_val| *out_val += o_val);
         }
     }
 

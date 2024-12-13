@@ -10,6 +10,7 @@ fn min(a: usize, b: usize) -> usize {
 // this code was copied from AI (https://gemini.google.com/app/50823bc63f3ec0a5)
 // The ndarray does not implement this function
 // Maybe I should make pr?
+/// This function is not the most efficient but it works
 fn dot_3d<
     T: num_traits::identities::Zero + Clone + std::ops::Mul<Output = T> + std::ops::Add<Output = T>,
 >(
@@ -44,7 +45,7 @@ pub fn flash_attention(
     let [batch_size, seq_len, head_dim] = q.shape() else {
         return None;
     };
-    let num_blocks = seq_len + block_size - 1;
+    let num_blocks = (seq_len + block_size - 1) / block_size;
     let mut output = Array3::zeros((*batch_size, *seq_len, *head_dim));
     for i in 0..num_blocks {
         for j in 0..num_blocks {
